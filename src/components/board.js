@@ -13,10 +13,10 @@ class Board extends React.Component {
         super(props);
         this.state = {
             cells: Array(25).fill(0),
-            firstHE: [-1, -1],
-            secondHE: [-1, -1],
-            firstJU: [-1, -1],
-            secondJU: [-1, -1],
+            firstHE: [0, 0],
+            secondHE: [0, 4],
+            firstJU: [4, 0],
+            secondJU: [4, 4],
             availableMovesOrBuilds: [],
         };
         this.humanPlayer = props.human;
@@ -27,7 +27,7 @@ class Board extends React.Component {
         this.upperBoundCellValue = this.humanPlayer === "JU" ? 12 : 8;
         this.lowerBoundCellValue = this.humanPlayer === "JU" ? 9 : 5;
         this.setupBuilders();
-     
+
         // test
         this.state.cells[0] = 9;
         this.state.firstHE = [0, 0]
@@ -37,7 +37,7 @@ class Board extends React.Component {
     setupBuilders() {
         // choose 2 cells for each builder
     }
-  
+
     render() {
         const sources = this.state.cells.map((square) => this.getImageSourceCell(square));
         return (
@@ -82,10 +82,12 @@ class Board extends React.Component {
     }
 
     renderSquare(source, idOfCell) {
+        const glowing = this.state.availableMovesOrBuilds?.find(x => x === idOfCell) != null ? true : false;
         return (
             <Square
                 src={`../images/${source}`}
                 onClick={() => this.clickHandle(idOfCell)}
+                glowing={glowing}
             />
         );
     }
@@ -120,7 +122,7 @@ class Board extends React.Component {
             case 12:
                 return "lvl_3_JU.png";
             default:
-                return  "";
+                return "";
         }
     }
 
@@ -137,44 +139,58 @@ class Board extends React.Component {
                 this.chooseMove = false;
                 this.moving = false;
                 this.lastClickedId = -1;
+                this.setState({ availableMovesOrBuilds: null });
             }
         }
 
-        if (this.chooseMove === true) {
-            const data = [{
-                cells: this.state.cells.slice(),
-                firstHE: this.state.firstHE.slice(),
-                secondHE: this.state.secondHE.slice(),
-                firstJU: this.state.firstJU.slice(),
-                secondJU: this.state.secondJU.slice(),
-                startPosition: [Math.floor(idOfCell / 5), idOfCell % 5],
-            }];
-            axios.post(getAvailableMovesURL, data);
-        }
-
         // If we selected a builder then we're in a phase of choosing where to move, builder can still be de-selected
-        if (this.chooseMove === true && this.lastClickedId !== idOfCell) {
-            
-            this.chooseMove = false;
-            this.moving = true;
+        if (this.chooseMove === true) {
+            if (this.lastClickedId === idOfCell)
+                this.setupAvailableMoves(idOfCell, getAvailableMovesURL);
+            else {
+                this.chooseMove = false;
+                this.moving = true;
+            }
             // make a request for available moves 
             // make a converter to python - implemented game
         }
 
         // If we decided to move to a certain field and that field is in the list of allowed moves
-        if (this.building === true && this.state.availableMovesOrBuilds.find(x => x[0] === Math.floor(idOfCell / 5) && x[1] === idOfCell % 5) != null) {
+        if (this.building === true && this.state.availableMovesOrBuilds.find(x => x === idOfCell) != null) {
             this.buildBlock(idOfCell);
             this.building = false;
+            this.setState({availableMovesOrBuilds: null});
         }
 
         // If we decided to move to a certain field and that field is in the list of allowed moves
-        if (this.moving === true && this.state.availableMovesOrBuilds.find(x => x[0] === Math.floor(idOfCell / 5) && x[1] === idOfCell % 5) != null) {
+        if (this.moving === true && this.state.availableMovesOrBuilds.find(x => x === idOfCell) != null) {
             this.moveFigure(this.lastClickedId, idOfCell);
             this.lastClickedId = -1;
             this.moving = false;
             this.building = true;
+            this.setupAvailableMoves(idOfCell, getAvailableBuildsURL);
             // make a request for available builds
         }
+    }
+
+    setupAvailableMoves(selectedCoordinate, url) {
+        this.getMovesFromServer(selectedCoordinate, url).
+            then((arrayOfMoves) => this.setState({ availableMovesOrBuilds: arrayOfMoves }));
+    }
+
+    async getMovesFromServer(selectedCoordinate, url) {
+        const data = [{
+            cells: this.state.cells.slice().map(x => x % 5),
+            firstHE: this.state.firstHE.slice(),
+            secondHE: this.state.secondHE.slice(),
+            firstJU: this.state.firstJU.slice(),
+            secondJU: this.state.secondJU.slice(),
+            startPosition: [Math.floor(selectedCoordinate / 5), selectedCoordinate % 5],
+        }];
+        const response = await axios.
+            post(url, data).
+            catch((err) => { console.log(err) });
+        return response.data.moves.map(x => x[0] * 5 + x[1]);
     }
 
     makeRequest() {
@@ -197,9 +213,10 @@ class Board extends React.Component {
         const cells = this.state.cells.slice();
         cells[fromCell] = (cells[fromCell] + 1) % 5;
         cells[toCell] = 5 * multiplier + cells[toCell] - 1;
+        // HERE IS A BUG PLEASE STOP
         this.setState({
             cells: cells,
-        });
+        }, console.log(this.state.cells));
     }
 
 }

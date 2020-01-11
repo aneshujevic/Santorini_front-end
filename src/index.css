@@ -16,6 +16,12 @@ html, body {
     background-color: white;
 }
 
+.glowing {
+    border: 2px solid green;
+    background-color: #fff;
+    box-shadow: 0px 5px 15px 0px #0ff;
+}
+
 .board {
     text-align:center;
 }
