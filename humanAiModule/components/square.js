@@ -6,7 +6,7 @@ function Square(props) {
             <button className="square glowing" onClick={props.onClick}>
                 <img src={props.src} alt="Polje" width="100%" height="100%"></img>
             </button>
-        ) :
+        ):
         (
             <button className="square" onClick={props.onClick}>
                 <img src={props.src} alt="Polje" width="100%" height="100%"></img>
