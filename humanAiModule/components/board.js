@@ -8,6 +8,8 @@ const getMoveMinmaxAIURL = "http://127.0.0.1:8000/minmax/";
 const getMoveAlphaBetaAIURL = "http://127.0.0.1:8000/alphaBeta/";
 const getMoveAlphaBetaCustomAIURL = "http://127.0.0.1:8000/alphaBetaCustom/";
 
+var gameEnded = false;
+
 class Board extends React.Component {
     constructor(props) {
         super(props);
@@ -30,11 +32,8 @@ class Board extends React.Component {
         // values from 9 to 12 belong to Jupiter 
         this.upperBoundCellValue = 12;
         this.lowerBoundCellValue = 9;
-
-        // test
-        //this.state.cells[0] = 11;
-        //this.state.firstHE = 0;
-        //this.state.availableMovesOrBuilds = [[0, 1], [0, 2], [0, 3]];
+        this.movesCount = 0;
+        this.depth = 4;
     }
 
     render() {
@@ -91,6 +90,35 @@ class Board extends React.Component {
         );
     }
 
+    checkWin () {
+        const index = this.state.cells.findIndex(x => x === 12 || x === 8);
+        if (index !== -1) {
+            switch(this.state.cells[index]) {
+                case 8:
+                    alert("AI won!");
+                    break;
+                case 12:
+                    alert("Human won!");
+            }
+            gameEnded = true;
+
+            if (window.confirm("Do you want to play another game?")) {
+                window.location.reload();
+            }
+        }
+    }
+
+    canGoDeeper() {
+        if (this.movesCount >= 30)
+            this.depth = 5;
+        
+        if (this.movesCount >= 55)
+            this.depth = 6;
+
+        if (this.movesCount >= 70)
+            this.depth = 7;
+    }
+
     // Choosing a path for the image source for the appropriate value
     getImageSourceCell(i) {
         switch (i) {
@@ -126,7 +154,7 @@ class Board extends React.Component {
     }
 
     clickHandle(idOfCell) {
-        if (this.state.humanNext !== true)
+        if (gameEnded || this.state.humanNext !== true)
             return;
         // if the board is empty, nothing on it yet
         if (this.buildersSetUp < 2) {
@@ -172,20 +200,21 @@ class Board extends React.Component {
             this.moving = false;
             this.building = true;
             return;
-            //this.setupAvailableMoves(idOfCell, getAvailableBuildsURL);
-            // make a request for available builds
         }
 
         // If we decided to move to a certain field and that field is in the list of allowed moves
         if (this.building === true && this.state.availableMovesOrBuilds.find(x => x === idOfCell) != null) {
             this.buildBlock(idOfCell);
             this.building = false;
-            this.setState({ availableMovesOrBuilds: null, humanNext: false }, () => this.doMoveAI(getMoveAlphaBetaCustomAIURL, 4));
+            this.setState({ availableMovesOrBuilds: null, humanNext: false }, () => this.doMoveAI(getMoveAlphaBetaCustomAIURL, this.depth));
         }
     }
 
     doMoveAI(URL, depth) {
-        // Hardcoded - to be deleted
+        // Check if human won
+        this.checkWin();
+        if (gameEnded)
+            return;
         this.getAIMoveFromServer(URL, depth)
             .then((resp) => {
                 const buildersID = resp.data.id;
@@ -204,8 +233,10 @@ class Board extends React.Component {
                         coordinatesMoveFrom = null;
                 }
 
-                this.moveFigure(coordinatesMoveFrom, move, () => console.log("did my work"));
+                this.moveFigure(coordinatesMoveFrom, move);
                 this.buildBlock(build);
+                // Check if AI has won
+                this.checkWin();
             });
 
     };
@@ -226,7 +257,7 @@ class Board extends React.Component {
             firstJU: this.state.firstJU,
             secondJU: this.state.secondJU,
             startPosition: null,
-            depth: depth
+            depth: depth,
         }];
         const response = await axios
             .post(url, data)
@@ -246,6 +277,26 @@ class Board extends React.Component {
     }
 
     setUpAIBuilders() {
+        const firstJULocal = this.state.firstJU;
+        const secondJULocal = this.state.secondJU;
+
+        let firstHE = 0;
+        let secondHE = 0;
+
+        let combinationsFirst = [7, 6, 8];
+        let combinationsSecond = [17, 18, 19];
+
+        for (let i = 0; i < 3; i++) {
+            if (combinationsFirst[i] !== firstJULocal && combinationsFirst[i] !== secondJULocal && firstHE === 0)
+                firstHE = combinationsFirst[i];
+
+            if (combinationsSecond[i] !== firstJULocal && combinationsSecond[i] !== secondJULocal && secondHE === 0)
+                secondHE = combinationsSecond[i];
+
+            if (firstHE && secondHE)
+                break;
+        }
+        /*
         const firstJULocal = this.state.firstJU;
         const secondJULocal = this.state.secondJU;
         let availableCells = Array(25).fill(undefined).map((_, i) => i);
@@ -280,6 +331,7 @@ class Board extends React.Component {
                 break;
             }
         }
+        */
 
         const cells = this.state.cells.slice();
         cells[firstHE] = 5;
@@ -345,6 +397,8 @@ class Board extends React.Component {
             secondJU: this.state.secondJU === fromCell ? toCell : this.state.secondJU,
             cells: cells,
         }, callBackFunction);
+        this.movesCount++;
+        this.canGoDeeper();
     }
 
 }
