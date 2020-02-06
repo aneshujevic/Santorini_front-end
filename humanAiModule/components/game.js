@@ -4,7 +4,7 @@ import Board from './board';
 class Game extends React.Component {
     render() {
         return (
-            <Board human="JU"/>
+            <Board human="JU" />
         )
     }
 }

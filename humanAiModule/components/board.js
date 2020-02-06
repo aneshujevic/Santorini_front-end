@@ -1,12 +1,13 @@
 import React from 'react';
 import axios from 'axios';
 import Square from './square';
+import Panel from './panel';
 
 const getAvailableMovesURL = "http://127.0.0.1:8000/getAvailableMoves/";
 const getAvailableBuildsURL = "http://127.0.0.1:8000/getAvailableBuilds/";
-const getMoveMinmaxAIURL = "http://127.0.0.1:8000/minmax/";
-const getMoveAlphaBetaAIURL = "http://127.0.0.1:8000/alphaBeta/";
-const getMoveAlphaBetaCustomAIURL = "http://127.0.0.1:8000/alphaBetaCustom/";
+const getMoveMinmaxAiURL = "http://127.0.0.1:8000/minimax/";
+const getMoveAlphaBetaAiURL = "http://127.0.0.1:8000/alphaBeta/";
+const getMoveAlphaBetaCustomAiURL = "http://127.0.0.1:8000/alphaBetaCustom/";
 
 var gameEnded = false;
 
@@ -29,6 +30,8 @@ class Board extends React.Component {
         this.building = false;
         this.buildersSetUp = 0;
         this.lastClickedId = -1;
+        this.serverAiMoveURL = getMoveAlphaBetaCustomAiURL;
+
         // values from 9 to 12 belong to Jupiter 
         this.upperBoundCellValue = 12;
         this.lowerBoundCellValue = 9;
@@ -39,42 +42,54 @@ class Board extends React.Component {
     render() {
         const sources = this.state.cells.map((square) => this.getImageSourceCell(square));
         return (
-            <div className="board">
-                <div className="board-row">
-                    {this.renderSquare(sources[0], 0)}
-                    {this.renderSquare(sources[1], 1)}
-                    {this.renderSquare(sources[2], 2)}
-                    {this.renderSquare(sources[3], 3)}
-                    {this.renderSquare(sources[4], 4)}
+            <div className="main-div">
+                <Panel side="left" class="left-panel" />
+
+                <div className="board">
+                    <div className="board-row">
+                        {this.renderSquare(sources[0], 0)}
+                        {this.renderSquare(sources[1], 1)}
+                        {this.renderSquare(sources[2], 2)}
+                        {this.renderSquare(sources[3], 3)}
+                        {this.renderSquare(sources[4], 4)}
+                    </div>
+                    <div className="board-row">
+                        {this.renderSquare(sources[5], 5)}
+                        {this.renderSquare(sources[6], 6)}
+                        {this.renderSquare(sources[7], 7)}
+                        {this.renderSquare(sources[8], 8)}
+                        {this.renderSquare(sources[9], 9)}
+                    </div>
+                    <div className="board-row">
+                        {this.renderSquare(sources[10], 10)}
+                        {this.renderSquare(sources[11], 11)}
+                        {this.renderSquare(sources[12], 12)}
+                        {this.renderSquare(sources[13], 13)}
+                        {this.renderSquare(sources[14], 14)}
+                    </div>
+                    <div className="board-row">
+                        {this.renderSquare(sources[15], 15)}
+                        {this.renderSquare(sources[16], 16)}
+                        {this.renderSquare(sources[17], 17)}
+                        {this.renderSquare(sources[18], 18)}
+                        {this.renderSquare(sources[19], 19)}
+                    </div>
+                    <div className="board-row">
+                        {this.renderSquare(sources[20], 20)}
+                        {this.renderSquare(sources[21], 21)}
+                        {this.renderSquare(sources[22], 22)}
+                        {this.renderSquare(sources[23], 23)}
+                        {this.renderSquare(sources[24], 24)}
+                    </div>
                 </div>
-                <div className="board-row">
-                    {this.renderSquare(sources[5], 5)}
-                    {this.renderSquare(sources[6], 6)}
-                    {this.renderSquare(sources[7], 7)}
-                    {this.renderSquare(sources[8], 8)}
-                    {this.renderSquare(sources[9], 9)}
-                </div>
-                <div className="board-row">
-                    {this.renderSquare(sources[10], 10)}
-                    {this.renderSquare(sources[11], 11)}
-                    {this.renderSquare(sources[12], 12)}
-                    {this.renderSquare(sources[13], 13)}
-                    {this.renderSquare(sources[14], 14)}
-                </div>
-                <div className="board-row">
-                    {this.renderSquare(sources[15], 15)}
-                    {this.renderSquare(sources[16], 16)}
-                    {this.renderSquare(sources[17], 17)}
-                    {this.renderSquare(sources[18], 18)}
-                    {this.renderSquare(sources[19], 19)}
-                </div>
-                <div className="board-row">
-                    {this.renderSquare(sources[20], 20)}
-                    {this.renderSquare(sources[21], 21)}
-                    {this.renderSquare(sources[22], 22)}
-                    {this.renderSquare(sources[23], 23)}
-                    {this.renderSquare(sources[24], 24)}
-                </div>
+
+                <Panel
+                    side="right"
+                    algorithmFun={() => this.changeUrl()}
+                    increaseFun={() => this.incDepth()}
+                    decreaseFun={() => this.decDepth()}
+                    class="right-panel"
+                />
             </div>
         );
     }
@@ -90,15 +105,18 @@ class Board extends React.Component {
         );
     }
 
-    checkWin () {
+    checkWin() {
         const index = this.state.cells.findIndex(x => x === 12 || x === 8);
         if (index !== -1) {
-            switch(this.state.cells[index]) {
+            switch (this.state.cells[index]) {
                 case 8:
                     alert("AI won!");
                     break;
                 case 12:
                     alert("Human won!");
+                    break;
+                default:
+                    break;
             }
             gameEnded = true;
 
@@ -106,12 +124,65 @@ class Board extends React.Component {
                 window.location.reload();
             }
         }
+
+        let firstJU = this.state.firstJU;
+        let secondJU = this.state.secondJU;
+        let firstHE = this.state.firstHE;
+        let secondHE = this.state.secondHE;
+
+        if (this.getMovesFromServer(firstJU, getAvailableMovesURL).length === 0 && this.getMovesFromServer(secondJU, getAvailableMovesURL).length === 0) {
+            gameEnded = true;
+            alert("AI won!");
+        } else if (this.getMovesFromServer(firstHE, getAvailableMovesURL).length === 0 && this.getMovesFromServer(secondHE, getAvailableMovesURL).length === 0) {
+            gameEnded = true;
+            alert("Human won!");
+        }
+
+        if (gameEnded) {
+            if (window.confirm("Do you want to play another game?")) {
+                window.location.reload();
+            }
+        }
+    }
+
+    changeUrl() {
+        const alg = document.getElementById("algorithm").value;
+        switch (alg) {
+            case "minimax":
+                this.serverAiMoveURL = getMoveMinmaxAiURL;
+                break;
+            case "ab":
+                this.serverAiMoveURL = getMoveAlphaBetaAiURL;
+                break;
+            case "ab-enhanced":
+                this.serverAiMoveURL = getMoveAlphaBetaCustomAiURL;
+                break;
+            default:
+                this.serverAiMoveURL = getMoveAlphaBetaCustomAiURL;
+                break;
+        }
+        alert("Successfully changed algorithm for AI!");
+    }
+
+    incDepth() {
+        this.depth++;
+        this.updateDepthUI();
+    }
+
+    decDepth() {
+        this.depth--;
+        this.updateDepthUI();
+    }
+
+    updateDepthUI() {
+        const depthSpan = document.getElementById("graph-depth");
+        depthSpan.textContent = this.depth;
     }
 
     canGoDeeper() {
         if (this.movesCount >= 30)
             this.depth = 5;
-        
+
         if (this.movesCount >= 55)
             this.depth = 6;
 
@@ -206,7 +277,7 @@ class Board extends React.Component {
         if (this.building === true && this.state.availableMovesOrBuilds.find(x => x === idOfCell) != null) {
             this.buildBlock(idOfCell);
             this.building = false;
-            this.setState({ availableMovesOrBuilds: null, humanNext: false }, () => this.doMoveAI(getMoveAlphaBetaCustomAIURL, this.depth));
+            this.setState({ availableMovesOrBuilds: null, humanNext: false }, () => this.doMoveAI(this.serverAiMoveURL, this.depth));
         }
     }
 
