@@ -20,14 +20,14 @@ class Board extends React.Component {
             availableMovesOrBuilds: [],
             juNext: true,
         };
-        // arguable vvvvvvvvvvvvvvvvvv
+
         this.humanPlayer = props.human;
         this.chooseMove = false;
         this.moving = false;
         this.building = false;
         this.buildersSetUp = 0;
         this.lastClickedId = -1;
-        
+
         this.whoseMove = "Jupiter's move";
 
         // values from 9 to 12 belong to Jupiter 
@@ -38,7 +38,7 @@ class Board extends React.Component {
         this.upperBoundCellValueHE = 8;
         this.lowerBoundCellValueHE = 4;
     }
-    
+
     clickHandle(idOfCell) {
         if (gameEnded)
             return;
@@ -103,7 +103,7 @@ class Board extends React.Component {
         if (this.building === true && this.state.availableMovesOrBuilds.find(x => x === idOfCell) != null) {
             this.buildBlock(idOfCell);
             this.building = false;
-            this.setState({ availableMovesOrBuilds: null}, () => this.changeMoveUI());
+            this.setState({ availableMovesOrBuilds: null }, () => this.changeMoveUI());
         }
     }
 
@@ -123,7 +123,7 @@ class Board extends React.Component {
                 firstJU: this.buildersSetUp === 0 ? idOfCell : this.state.firstJU,
                 secondJU: this.buildersSetUp === 1 ? idOfCell : this.state.secondJU,
                 juNext: this.buildersSetUp === 1 ? !this.state.juNext : this.state.juNext
-            }, () => ++this.buildersSetUp && this.changeMoveUI());
+            }, () => this.changeMoveUI());
         } else if (this.buildersSetUp < 4) {
             cells[idOfCell] = 5;
 
@@ -132,8 +132,11 @@ class Board extends React.Component {
                 firstHE: this.buildersSetUp === 2 ? idOfCell : this.state.firstHE,
                 secondHE: this.buildersSetUp === 3 ? idOfCell : this.state.secondHE,
                 juNext: this.buildersSetUp === 3 ? !this.state.juNext : this.state.juNext
-            }, () => ++this.buildersSetUp && this.changeMoveUI());
+            }, () => this.changeMoveUI());
         }
+
+        this.buildersSetUp++;
+        this.logSetupUI(idOfCell, this.buildersSetUp);
     }
 
     setupAvailableMoves(selectedCoordinate, url) {
@@ -175,6 +178,9 @@ class Board extends React.Component {
         cells[fromCell] = oldValueOfCell >= 9 ? (cells[fromCell] + 1) % 5 : cells[fromCell] % 5;
         cells[toCell] = oldValueOfCell >= 9 ? 5 * multiplier + cells[toCell] - 1 : 5 * multiplier + cells[toCell];
 
+        this.logMoveUI(fromCell, false);
+        this.logMoveUI(toCell, false);
+
         this.setState({
             firstHE: this.state.firstHE === fromCell ? toCell : this.state.firstHE,
             secondHE: this.state.secondHE === fromCell ? toCell : this.state.secondHE,
@@ -188,6 +194,8 @@ class Board extends React.Component {
     buildBlock(onCell) {
         const cells = this.state.cells.slice();
         cells[onCell] += 1;
+
+        this.logMoveUI(onCell, true);
 
         this.setState({
             cells: cells,
@@ -235,9 +243,151 @@ class Board extends React.Component {
             }
         }
     }
+    
+    downloadState() {
+        let text = document.getElementById("moves").innerHTML;
+        text = text.replace(/\s?<br>\s?/g, "\n");
+        text += "\n";
+
+        var element = document.createElement('a');
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+        element.setAttribute('download', "game_state.txt");
+
+        element.style.display = 'none';
+        document.body.appendChild(element);
+
+        element.click();
+
+        document.body.removeChild(element);
+    }
+
+    loadState(event) {
+        if (this.state.firstJU === -1) {
+            const reader = new FileReader();
+            reader.onload = (e) => this.loadMoves(e);
+            reader.readAsText(event.target.files[0]);
+        } else {
+            if (window.confirm("You must refresh page before importing a game state.\nRefresh now?"))
+                window.location.reload();
+        }
+    }
+
+    loadMoves(event) {
+        const text = event.target.result.trim().split("\n");
+        this.setUpBuildersFromImport(text);
+        this.doMovesFromImport(text);
+    }
+
+    setUpBuildersFromImport(text) {
+        for (let i = 0; i < 2; i++) {
+            let firstRow = text.shift().split(" ");
+            let numberOfCellFirst = this.convertCoordinatesImport(firstRow[0]);
+            let numberOfCellSecond = this.convertCoordinatesImport(firstRow[1]);
+
+            this.setUpBuilders(numberOfCellFirst);
+            this.setUpBuilders(numberOfCellSecond);
+        }
+    }
+
+    doMovesFromImport(text) {
+        while (text.length !== 0) {
+            let triplet = text.shift();
+            let singleMovesArray = triplet.split(" ");
+            let moveFrom = this.convertCoordinatesImport(singleMovesArray[0]);
+            let moveTo = this.convertCoordinatesImport(singleMovesArray[1]);
+            let buildOn = this.convertCoordinatesImport(singleMovesArray[2]);
+
+            this.moveFigure(moveFrom, moveTo);
+            this.buildBlock(buildOn);
+        };
+    }
+
+    convertCoordinatesImport(coordinateString) {
+        let row = coordinateString[0];
+        let column = parseInt(coordinateString[1]) - 1;
+
+        switch (row) {
+            case "A":
+                row = 0;
+                break;
+            case "B":
+                row = 1;
+                break;
+            case "C":
+                row = 2;
+                break;
+            case "D":
+                row = 3;
+                break;
+            case "E":
+                row = 4;
+                break;
+            default:
+                break;
+        }
+
+        return row * 5 + column;
+    }
+
+
+    convertCoordinatesOut(coordinate) {
+        let row = Math.floor(coordinate / 5);
+        let column = coordinate % 5;
+
+        let resultString = "";
+
+        switch (row) {
+            case 0:
+                resultString += "A";
+                break;
+            case 1:
+                resultString += "B";
+                break;
+            case 2:
+                resultString += "C";
+                break;
+            case 3:
+                resultString += "D";
+                break;
+            case 4:
+                resultString += "E";
+                break;
+            default:
+                break;
+        }
+
+        resultString += String(column + 1) + " ";
+        return resultString;
+    }
+
+    logMoveUI(move, isBuild) {
+        const movesDiv = document.getElementById("moves");
+        let resString = this.convertCoordinatesOut(move);
+
+        if (isBuild)
+            resString += "<br>";
+
+        movesDiv.innerHTML += resString;
+    }
+
+    logSetupUI(whereSetUp, builderNumber) {
+        const movesDiv = document.getElementById("moves");
+        let resString = this.convertCoordinatesOut(whereSetUp);
+
+        switch (builderNumber) {
+            case 2:
+            case 4:
+                resString += "<br>";
+                break;
+            default:
+                break;
+        }
+
+        movesDiv.innerHTML += resString;
+    }
 
     changeMoveUI() {
-        switch(this.state.juNext){
+        switch (this.state.juNext) {
             case false:
                 this.whoseMove = "Hercules's move";
                 break;
@@ -245,7 +395,7 @@ class Board extends React.Component {
                 this.whoseMove = "Jupiter's move";
                 break;
             default:
-                return;
+                break;
         }
 
         document.getElementsByClassName("who-move")[0].textContent = this.whoseMove;
@@ -258,7 +408,25 @@ class Board extends React.Component {
                 <Panel side="left" class="left-panel" />
 
                 <div className="board">
+                    <div className="first-row">
+                        <div className="column-number-cell">
+                            1
+                        </div>
+                        <div className="column-number-cell">
+                            2
+                        </div>
+                        <div className="column-number-cell">
+                            3
+                        </div>
+                        <div className="column-number-cell">
+                            4
+                        </div>
+                        <div className="column-number-cell">
+                            5
+                        </div>
+                    </div>
                     <div className="board-row">
+                        <span className="row-number-cell">A</span>
                         {this.renderSquare(sources[0], 0)}
                         {this.renderSquare(sources[1], 1)}
                         {this.renderSquare(sources[2], 2)}
@@ -266,6 +434,7 @@ class Board extends React.Component {
                         {this.renderSquare(sources[4], 4)}
                     </div>
                     <div className="board-row">
+                        <span className="row-number-cell">B</span>
                         {this.renderSquare(sources[5], 5)}
                         {this.renderSquare(sources[6], 6)}
                         {this.renderSquare(sources[7], 7)}
@@ -273,6 +442,7 @@ class Board extends React.Component {
                         {this.renderSquare(sources[9], 9)}
                     </div>
                     <div className="board-row">
+                        <span className="row-number-cell">C</span>
                         {this.renderSquare(sources[10], 10)}
                         {this.renderSquare(sources[11], 11)}
                         {this.renderSquare(sources[12], 12)}
@@ -280,6 +450,7 @@ class Board extends React.Component {
                         {this.renderSquare(sources[14], 14)}
                     </div>
                     <div className="board-row">
+                        <span className="row-number-cell">D</span>
                         {this.renderSquare(sources[15], 15)}
                         {this.renderSquare(sources[16], 16)}
                         {this.renderSquare(sources[17], 17)}
@@ -287,6 +458,7 @@ class Board extends React.Component {
                         {this.renderSquare(sources[19], 19)}
                     </div>
                     <div className="board-row">
+                        <span className="row-number-cell">E</span>
                         {this.renderSquare(sources[20], 20)}
                         {this.renderSquare(sources[21], 21)}
                         {this.renderSquare(sources[22], 22)}
@@ -295,7 +467,12 @@ class Board extends React.Component {
                     </div>
                     <span className="who-move">{this.whoseMove}</span>
                 </div>
-                <Panel side="right" class="right-panel" />
+                <Panel
+                    side="right"
+                    class="right-panel"
+                    importState={(e) => this.loadState(e)}
+                    exportState={() => this.downloadState()}
+                />
             </div>
         );
     }
@@ -338,7 +515,7 @@ class Board extends React.Component {
         const glowing = this.state.availableMovesOrBuilds?.find(x => x === idOfCell) != null ? true : false;
         return (
             <Square
-                src={`../images/${source}`}
+                src={`/static/images/${source}`}
                 onClick={() => this.clickHandle(idOfCell)}
                 glowing={glowing}
             />
